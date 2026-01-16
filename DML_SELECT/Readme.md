@@ -1,5 +1,8 @@
-## SQL SELECT Statement Structure
+## SQL SELECT Statement
 
+> The SELECT statement is an SQL command used to retrieve data from one or more tables in a database.
+
+## SQL SELECT Statement Structure
 ```sql
 SELECT [DISTINCT] column_list , scalar_expressions
 FROM table_name / joined_tables / subquery
@@ -103,7 +106,7 @@ FROM film
 ```
 
 ## JOIN Types
-## Inner Join
+## Inner Join ( A ∩ B )
 
 Table A                                                     
 | ID | Name |
@@ -122,8 +125,6 @@ Table B
 
 ### SQL Query
 
-<svg  width="200"  height="150"  viewBox="0 0 400 300"  xmlns="http://www.w3.org/2000/svg"> <defs> <clipPath  id="clip-circle-a"> <circle  cx="140"  cy="150"  r="80"/> </clipPath> </defs> <circle  cx="140"  cy="150"  r="80"  fill="none"  stroke="#2563eb"  stroke-width="2"/> <circle  cx="260"  cy="150"  r="80"  fill="none"  stroke="#dc2626"  stroke-width="2"/> <circle  cx="260"  cy="150"  r="80"  fill="#8b5cf6"  opacity="0.7"  clip-path="url(#clip-circle-a)"/> <text  x="100"  y="155"  font-size="32"  font-weight="bold"  fill="#1e40af"  text-anchor="middle">A</text> <text  x="300"  y="155"  font-size="32"  font-weight="bold"  fill="#991b1b"  text-anchor="middle">B</text> <text  x="200"  y="155"  font-size="24"  font-weight="bold"  fill="#5b21b6"  text-anchor="middle">A∩B</text> </svg>
-
 ```sql
 SELECT * 
 FROM A 
@@ -136,7 +137,7 @@ Table A ∩ B
 | 1    | X    |1 | LMN
 
 
-## Left Outer Join
+## Left Outer Join ( A ∪ (A ∩ B) )
 
 
 **Table A:**
@@ -177,7 +178,7 @@ In this example:
 - Rows with ID=2 and ID=3 only exist in Table A, so B .ID and B .Name show null
 - Rows with ID=4 from Table B are not included since they don't match any rows in Table A
 
-## Right Outer Join
+## Right Outer Join ( B ∪ (A ∩ B) )
 
 **Table A:**
 | ID | Name |
@@ -217,7 +218,8 @@ In this example:
 - Rows with ID=4 only exist in Table B, so A .ID and A .Name show null (two rows because there are two records with ID=4 in Table B)
 - Rows with ID=2 and ID=3 from Table A are not included since they don't match any rows in Table B
 
-##  Full Outer Join
+##  Full Outer Join ( A ∪ B )
+
 
 **Table A:**
 | ID | Name |
@@ -861,6 +863,306 @@ When working with nested subqueries:
 - NOT EXISTS typically performs better than NOT IN for large datasets
 - Consider using CTEs (WITH clause) for complex queries to improve readability and potentially performance
 
-### NULL Values Warning
+> ### NULL Values Warning
+> **CRITICAL**: Be extremely careful with NOT IN when NULL values might be present in the subquery results. This is one of the most common sources of unexpected query behavior in SQL. When in doubt, use NOT EXISTS instead.
+
+
+# SQL Advanced Concepts 
+
+## Common Table Expressions (CTE)
+
+### Key Points about CTEs
+
+1. **Improves readability** - No need to read the query upside down
+2. **Allows reusing the same subquery** multiple times without duplicating the code
+3. **In PostgreSQL**, CTEs can be thought of 'materialized' subqueries
+4. **CTEs are defined using the WITH clause**
+5. **For simple single-use subqueries CTEs are not needed**
+
+### CTE Syntax
+```sql
+WITH cte_name_X AS (
+    SELECT B.column_3
+    FROM table_B AS B
+    JOIN table_C AS C
+    ON B.column_4 = C.column_5
+    WHERE ...
+)
+SELECT column_1, column_2
+FROM table_A
+WHERE column_1 IN (
+    SELECT column_3
+    FROM cte_name_X
+);
+```
+
+### Example: Finding Films by Actor
+```sql
+-- Find all films featuring actor "Burt Temple"
+WITH film_burt_temple AS (
+    SELECT fa.film_id
+    FROM film_actor fa
+    WHERE fa.actor_id = (
+        SELECT a.actor_id
+        FROM actor a
+        WHERE UPPER(a.first_name) = 'BURT' 
+          AND UPPER(a.last_name) = 'TEMPLE'
+    )
+)
+SELECT f.title,
+       f.release_year
+FROM film f
+WHERE f.film_id IN (
+    SELECT film_id
+    FROM film_burt_temple
+);
+```
+
+**Benefits of this CTE approach:**
+- The subquery `film_burt_temple` is named and easier to understand
+- Can be reused multiple times if needed
+- Separates the logic into clear, manageable steps
+
 ---
-**CRITICAL**: Be extremely careful with NOT IN when NULL values might be present in the subquery results. This is one of the most common sources of unexpected query behavior in SQL. When in doubt, use NOT EXISTS instead.
+
+## Comparison: CTE vs View vs Subquery
+
+| Feature | CTE | View | Subquery |
+|---------|-----|------|----------|
+| **Purpose** | Temporary query result | Reusable query result | Part of a larger query |
+| **Usage** | Defined in a single SQL statement | Defined as a separate database object | Nested within a larger query |
+| **Syntax** | Defined using the keyword WITH | Defined using the CREATE VIEW statement | Defined within parentheses |
+| **Naming** | Named within the query | Named as a separate database object | Not named |
+| **Performance** | Generally less efficient due to lack of optimization | Generally more efficient, as they can be indexed | Generally less efficient due to repeated calculations |
+| **Data Persistence** | Not persisted in the database | Persisted in the database | Not persisted in the database |
+| **Functionality** | Can be recursive | Can be indexed | Can only return scalar or aggregate values |
+| **Readability** | Can improve the readability of complex queries | Can improve the readability of complex queries | Can make queries more complex and harder to read |
+
+---
+
+## Set Operations:
+
+### Prerequisites for Set Operations
+
+**Identical output structure:**
+- Same number of columns
+- Corresponding columns have compatible datatypes
+
+### Set Operations Comparison Table
+
+| Set Operation | Description | Handles Duplicates | Use Case |
+|---------------|-------------|-------------------|----------|
+| **UNION ALL** | Combines all rows from both queries | Keeps all duplicates | When you need all records and duplicates matter, faster performance |
+| **UNION** | Combines rows from both queries | Removes duplicates | When you need unique records only |
+| **INTERSECT** | Returns only common rows | Returns unique common rows | Finding records that exist in both datasets |
+| **EXCEPT** | Returns rows from first query not in second | Returns unique differences | Finding records in one dataset but not another |
+
+### Basic Structure
+```sql
+SELECT column_1, column_2
+FROM table_A
+
+{SET OPERATION}
+
+SELECT column_1, column_2
+FROM table_B
+```
+
+---
+
+### UNION ALL
+
+Combines all rows from both tables, **including duplicates**.
+
+**Example:**
+```sql
+SELECT *
+FROM A
+
+UNION ALL
+
+SELECT *
+FROM B
+```
+
+**Input Tables:**
+
+Table A:
+| ID | Name |
+|----|------|
+| 1  | X    |
+| 2  | Y    |
+| 3  | Z    |
+
+Table B:
+| ID | Name |
+|----|------|
+| 1  | X    |
+| 4  | Q    |
+
+**Result:**
+| ID | Name |
+|----|------|
+| 1  | X    |
+| 2  | Y    |
+| 3  | Z    |
+| 1  | X    |
+| 4  | Q    |
+
+**Note:** Same data type in columns, same number of columns. Duplicates are retained.
+
+---
+
+### UNION
+
+Combines rows from both tables, **removing duplicates**.
+
+**Example:**
+```sql
+SELECT *
+FROM A
+
+UNION
+
+SELECT *
+FROM B
+```
+
+**Result:**
+| ID | Name |
+|----|------|
+| 1  | X    |
+| 2  | Y    |
+| 3  | Z    |
+| 4  | Q    |
+
+---
+
+### INTERSECT
+
+Returns only rows that exist in **both queries**.
+
+**Example:**
+```sql
+SELECT *
+FROM A
+
+INTERSECT
+
+SELECT *
+FROM B
+```
+
+**Result:**
+| ID | Name |
+|----|------|
+| 1  | X    |
+
+---
+
+### EXCEPT
+
+Returns rows from the first query that **don't appear** in the second query.
+
+**Example:**
+```sql
+SELECT *
+FROM A
+
+EXCEPT
+
+SELECT *
+FROM B
+```
+
+**Result:**
+| ID | Name |
+|----|------|
+| 2  | Y    |
+| 3  | Z    |
+
+---
+
+## Practical Example: Complex Subquery with HAVING Clause
+
+### Problem Statement
+
+Find the **top 3 longest films** (title, release year, length) from the last 10 years that are:
+- Rated PG-13 or higher
+- Available in at least two DVD rental shops
+
+### Solution
+```sql
+-- Top 3 longest films from last 10 years
+-- Available in at least two DVD rental shops
+SELECT f.title,
+       f.release_year,
+       f.length
+FROM film f
+WHERE f.release_year >= EXTRACT(year FROM current_date) - 10
+  AND f.rating IN ('PG-13', 'R', 'NC-17')
+  AND f.film_id IN (
+      SELECT inv.film_id
+      FROM inventory inv
+      GROUP BY inv.film_id
+      HAVING COUNT(DISTINCT inv.store_id) >= 2
+  )
+ORDER BY f.length DESC
+LIMIT 3;
+```
+
+### Query Breakdown
+
+#### Main Query:
+- Selects `title`, `release_year`, and `length` from the film table
+- Filters for films from the last 10 years using `EXTRACT(year FROM current_date) - 10`
+- Filters for appropriate ratings: PG-13, R, or NC-17
+
+#### Subquery (IN clause):
+- Queries the `inventory` table to find films available in multiple stores
+- Groups results by `film_id`
+- Uses `HAVING` clause to filter only films available in 2 or more distinct stores
+- The `COUNT(DISTINCT inv.store_id) >= 2` ensures availability in at least two locations
+
+#### Result Ordering:
+- `ORDER BY f.length DESC` sorts by film length in descending order
+- `LIMIT 3` returns only the top 3 longest films
+
+### Key Concepts Demonstrated
+
+1. **Subquery with Aggregation** - Using COUNT and GROUP BY within a subquery
+2. **HAVING Clause** - Filtering aggregated results (stores >= 2)
+3. **DISTINCT Keyword** - Counting unique store locations
+4. **Date Functions** - Using EXTRACT to calculate date ranges dynamically
+5. **IN Operator** - Filtering based on subquery results
+
+
+
+## Best Practices
+
+### When to Use Each Approach
+
+- **Use CTEs** for complex queries that need temporary named results within a single statement
+- **Use Views** when you need to reuse query logic across multiple queries or applications
+- **Use Subqueries** for simple, one-time filtering or calculation needs
+- **Use HAVING clause** when you need to filter on aggregated data (after GROUP BY)
+
+### Set Operations Guidelines
+
+- Choose **UNION ALL** when you need duplicates and want better performance
+- Choose **UNION** when you need unique results only
+- Remember that **INTERSECT** and **EXCEPT** can be useful for data comparison and validation tasks
+
+### Performance Tips
+
+- Use **DISTINCT with COUNT** when you need to count unique values (like distinct stores)
+- Prefer **dynamic date calculations** (like EXTRACT) over hardcoded dates for maintainable queries
+- Consider creating **indexes on Views** for frequently accessed query patterns
+- **CTEs** can improve readability but may not always be optimized - test performance for critical queries
+
+### Code Quality
+
+- Always use clear, descriptive names for CTEs and Views
+- Add comments to explain complex logic
+- Break down complex queries into smaller, understandable parts
+- Test queries with small datasets first before running on production data 
